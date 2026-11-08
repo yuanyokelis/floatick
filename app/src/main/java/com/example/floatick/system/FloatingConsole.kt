@@ -171,7 +171,8 @@ class FloatingConsole @Inject constructor(
             pickerParams = params
             crosshair = cross
             pickerLabel = label
-            updatePickerLabel()
+            // addView 是异步的，必须等一次布局后再取十字中心，否则初次显示 0。
+            root.post { updatePickerLabel() }
         }
     }
 
