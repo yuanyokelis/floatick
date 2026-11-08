@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -232,17 +233,19 @@ fun SchemeEditScreen(
 
             Text("坐标以屏幕比例 0~1 存储；取点器支持 1px 微调")
             steps.forEachIndexed { index, step ->
-                StepEditor(
-                    index = index,
-                    step = step,
-                    onUpdate = { updated ->
-                        steps = steps.toMutableList().also { it[index] = updated }
-                    },
-                    onPick = {
-                        pickerTarget = index
-                        console.showPicker { x, y -> vm.setPicked(x, y) }
-                    }
-                )
+                key(index) {
+                    StepEditor(
+                        index = index,
+                        step = step,
+                        onUpdate = { updated ->
+                            steps = steps.toMutableList().also { it[index] = updated }
+                        },
+                        onPick = {
+                            pickerTarget = index
+                            console.showPicker { x, y -> vm.setPicked(x, y) }
+                        }
+                    )
+                }
             }
 
             if (type == SchemeType.STEP_SEQUENCE) {
@@ -295,27 +298,19 @@ private fun StepEditor(
                     }
                 }
             }
-            LabeledField(
-                "起点 X (0~1)", step.xRatio.toString(), decimal = true
-            ) { v -> v.toFloatOrNull()?.let { onUpdate(step.copy(xRatio = it.coerceIn(0f, 1f))) } }
-            LabeledField(
-                "起点 Y (0~1)", step.yRatio.toString(), decimal = true
-            ) { v -> v.toFloatOrNull()?.let { onUpdate(step.copy(yRatio = it.coerceIn(0f, 1f))) } }
+            RatioField("起点 X (0~1)", step.xRatio) { onUpdate(step.copy(xRatio = it)) }
+            RatioField("起点 Y (0~1)", step.yRatio) { onUpdate(step.copy(yRatio = it)) }
             if (step.action == ActionType.SWIPE) {
-                LabeledField("终点 X (0~1)", step.endXRatio.toString(), decimal = true) { v ->
-                    v.toFloatOrNull()?.let { onUpdate(step.copy(endXRatio = it.coerceIn(0f, 1f))) }
-                }
-                LabeledField("终点 Y (0~1)", step.endYRatio.toString(), decimal = true) { v ->
-                    v.toFloatOrNull()?.let { onUpdate(step.copy(endYRatio = it.coerceIn(0f, 1f))) }
-                }
+                RatioField("终点 X (0~1)", step.endXRatio) { onUpdate(step.copy(endXRatio = it)) }
+                RatioField("终点 Y (0~1)", step.endYRatio) { onUpdate(step.copy(endYRatio = it)) }
             }
-            LabeledField("手势时长 ms", step.durationMs.toString()) { v ->
-                v.toLongOrNull()?.let { onUpdate(step.copy(durationMs = it.coerceAtLeast(20L))) }
+            LongField("手势时长 ms（点击/长按/滑动均生效）", step.durationMs, 20L) {
+                onUpdate(step.copy(durationMs = it))
             }
-            LabeledField("本步后额外等待 ms", step.delayAfterMs.toString()) { v ->
-                v.toLongOrNull()?.let { onUpdate(step.copy(delayAfterMs = it.coerceAtLeast(0L))) }
+            LongField("本步后额外等待 ms", step.delayAfterMs, 0L) {
+                onUpdate(step.copy(delayAfterMs = it))
             }
-            TextButton(onClick = onPick) { Text("用取点器定位（支持 1px 微调）") }
+            TextButton(onClick = onPick) { Text("用取点器定位（拖动十字，支持 1px 微调）") }
         }
     }
 }
@@ -434,3 +429,35 @@ internal fun LabeledField(
 private fun NumberField(label: String, value: String, onChange: (String) -> Unit) {
     LabeledField(label, value, false, onChange)
 }
+
+/**
+ * 数值输入必须持有本地文本状态。
+ * 若直接把 value 绑定到 model，输入 "0." 这类中间态会被 model 回写成旧值，
+ * 光标跳走、内容被还原，看起来就是「设置没有效果」。
+ * 只有解析成功才写回 model；外部（取点器）改动时再同步文本。
+ */
+@Composable
+private fun RatioField(label: String, value: Float, onValue: (Float) -> Unit) {
+    var text by remember { mutableStateOf(formatRatio(value)) }
+    LaunchedEffect(value) {
+        if (text.toFloatOrNull() != value) text = formatRatio(value)
+    }
+    LabeledField(label, text, decimal = true) { input ->
+        text = input
+        input.toFloatOrNull()?.let { onValue(it.coerceIn(0f, 1f)) }
+    }
+}
+
+@Composable
+private fun LongField(label: String, value: Long, min: Long, onValue: (Long) -> Unit) {
+    var text by remember { mutableStateOf(value.toString()) }
+    LaunchedEffect(value) {
+        if (text.toLongOrNull() != value) text = value.toString()
+    }
+    LabeledField(label, text) { input ->
+        text = input
+        input.toLongOrNull()?.let { onValue(it.coerceAtLeast(min)) }
+    }
+}
+
+private fun formatRatio(v: Float): String = (Math.round(v * 10000f) / 10000f).toString()

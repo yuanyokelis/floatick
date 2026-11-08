@@ -33,7 +33,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        console.hide()
+        // 只在真正退出时移除悬浮窗；旋转、深色模式切换等配置变更会重建 Activity，
+        // 此时若无条件 hide，旧 onDestroy 会在新 Activity show() 之后把 view 移除。
+        if (isFinishing) console.hide()
         super.onDestroy()
     }
 }

@@ -20,10 +20,16 @@ class ClickForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(
-            Notifications.ID_TIMER,
-            Notifications.running(this, getString(R.string.notification_running_text))
-        )
+        // Android 14 对 specialUse 前台服务校验较严；失败时自我停止，
+        // 避免系统因「未及时调用 startForeground」而杀掉整个应用进程。
+        try {
+            startForeground(
+                Notifications.ID_TIMER,
+                Notifications.running(this, getString(R.string.notification_running_text))
+            )
+        } catch (e: Exception) {
+            stopSelf()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

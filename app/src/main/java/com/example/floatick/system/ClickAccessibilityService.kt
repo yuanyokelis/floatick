@@ -2,6 +2,7 @@ package com.example.floatick.system
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.res.Resources
 import android.graphics.Path
 import android.view.accessibility.AccessibilityEvent
 import com.example.floatick.core.Limits
@@ -63,8 +64,9 @@ class ClickAccessibilityService : AccessibilityService() {
         return dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
-    val screenWidthPx: Int get() = resources.displayMetrics.widthPixels
-    val screenHeightPx: Int get() = resources.displayMetrics.heightPixels
+    // 与取点器保持完全一致的尺寸来源，避免「取的点」和「点的位置」出现系统性偏移。
+    val screenWidthPx: Int get() = Resources.getSystem().displayMetrics.widthPixels
+    val screenHeightPx: Int get() = Resources.getSystem().displayMetrics.heightPixels
 
     companion object {
         private val _connected = MutableStateFlow(false)

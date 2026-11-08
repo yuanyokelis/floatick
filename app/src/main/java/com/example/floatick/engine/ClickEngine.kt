@@ -83,7 +83,6 @@ class ClickEngine @Inject constructor(
         }
 
         armedSchemeId = scheme.id
-        startForeground()
         scheduler.armReminder(scheme.id, rule.triggerUtcMillis)
         _state.value = EngineState(
             armed = true,
@@ -94,6 +93,7 @@ class ClickEngine @Inject constructor(
             else "未校时：使用本机时钟，绝对精度不可保证"
         )
         console.update(_state.value)
+        startForeground()
 
         timerHandle = timer.schedule(targetElapsed, cfg.advanceMs) { actualElapsed ->
             val deviation = actualElapsed - (targetElapsed - cfg.advanceMs)
@@ -195,8 +195,7 @@ class ClickEngine @Inject constructor(
                             step.xRatio * w, step.yRatio * h, duration
                         )
                         ActionType.CLICK -> service.performTap(
-                            step.xRatio * w, step.yRatio * h,
-                            Limits.MIN_GESTURE_DURATION_MS
+                            step.xRatio * w, step.yRatio * h, duration
                         )
                     }
                     if (!ok) {
@@ -208,9 +207,10 @@ class ClickEngine @Inject constructor(
                     _state.value = _state.value.copy(remainingCount = total - executed)
                     console.update(_state.value)
 
+                    // 步骤间隔对三种手势一律生效；至少等 gesture 本身走完。
                     val wait = max(
-                        step.delayAfterMs,
-                        if (step.action == ActionType.CLICK) scheme.intervalMs else duration
+                        max(step.delayAfterMs, scheme.intervalMs),
+                        duration
                     )
                     delay(wait)
                 }
@@ -262,13 +262,27 @@ class ClickEngine @Inject constructor(
         console.update(_state.value)
     }
 
+    /**
+     * Android 12+ 在应用处于后台时启动前台服务会抛
+     * ForegroundServiceStartNotAllowedException（常见于从悬浮窗点「开始」）。
+     * 不能让它把整个进程带崩——否则悬浮窗会随进程一起消失。
+     * 捕获后任务仍照常执行，只是少了保活，并明确提示用户。
+     */
     private fun startForeground() {
-        val intent = Intent(context, ClickForegroundService::class.java)
-            .setAction(ClickForegroundService.ACTION_ARM)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(intent)
-        } else {
-            context.startService(intent)
+        runCatching {
+            val intent = Intent(context, ClickForegroundService::class.java)
+                .setAction(ClickForegroundService.ACTION_ARM)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }.onFailure { error ->
+            _state.value = _state.value.copy(
+                message = "前台服务启动受限（${error.javaClass.simpleName}）；" +
+                    "任务仍会执行，但请回到 App 前台以免被系统回收"
+            )
+            console.update(_state.value)
         }
     }
 

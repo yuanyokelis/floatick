@@ -59,7 +59,7 @@ Android 不是实时系统。「毫秒级可配置」「毫秒级显示」「毫
 
 `.github/workflows/android.yml` 在 push / PR / 手动触发时运行：JDK 17 → 安装 Android SDK 34 → `./gradlew :app:assembleDebug --no-daemon` → 上传 `floatick-debug-apk` 产物（保留 30 天，可直接下载安装）。构建失败时另上传 `build-diagnostics`（报告与日志）。
 
-**首次推送后请到仓库 Actions 页看第一次构建结果**：生成此工程的环境没有 JDK / Gradle / Android SDK，源码此前只做过静态自检，CI 是第一次真正的编译验证。若编译报错，把 Actions 日志贴回来即可定位修复。
+**CI 已验证通过**：首次构建暴露出 `DataStore.MutablePreferences` 类型写错（13 个编译错误），已修复；第二次构建 `assembleDebug` 成功并产出 APK。生成此工程的环境没有 JDK / Gradle / Android SDK，所以每次改动都以 Actions 结果为准。
 
 `local.properties` 不入库，CI 通过 runner 预置的 `ANDROID_HOME` 找到 SDK；`.gitattributes` 保证 `gradlew` 在 Linux runner 上是 LF 且可执行、`gradle-wrapper.jar` 按二进制处理。
 
@@ -118,7 +118,9 @@ git push -u origin main
 ## 7. 已知限制
 
 - 精度只在 **App 前台 + 屏幕常亮**成立（`FLAG_KEEP_SCREEN_ON`，不需要 `WAKE_LOCK` 权限）。切后台、息屏、进程被杀后毫秒级立即失效，只保留分钟级提醒。
-- 坐标按屏幕比例存储，取点器支持 1px 微调；多显示器、折叠屏内外屏切换、部分分屏场景仍可能漂移。
+- 坐标按屏幕比例存储，取点器支持 1px 微调；取点与手势派发统一使用 `Resources.getSystem().displayMetrics`，但多显示器、折叠屏内外屏切换、部分分屏场景仍可能漂移。
+- 悬浮控制台/取点器靠**拖动空白处、标题或十字准星**移动，按钮区域保持可点击；输入数值时允许保留 `0.` 这类中间态，只有解析成功才写回模型。
+- 从悬浮窗在后台点击「开始」时，Android 12+ 可能拒绝启动前台服务；此时不会崩溃，任务仍执行但会提示回到 App 前台，否则进程可能被回收。
 - `dispatchGesture` 单次有 10~40ms 派发开销，且极短手势会被系统合并；步骤间隔用协程 `delay`，抖动大于 GO 信号本身。
 - 重启后不做后台自动拉起（Android 12+ 限制从 `BOOT_COMPLETED` 启动前台服务），仅提示用户回来重新武装——这与「亮屏 + 人手动打开」的设计前提一致。
 - 受保护名单只做包名匹配，是尽力而为的防误触护栏，不能替代用户判断。
