@@ -1,0 +1,126 @@
+# Floatick · Android 定时点击器
+
+自用 + 开源的 Android 自动点击工具。支持「单点重复」与「多步骤序列（点击 / 长按 / 滑动）」两类方案，一次性指定时刻定时，多方案保存与 JSON 备份，悬浮控制台与三通道急停。
+
+**用途边界**：仅用于自己设备上合法的重复性操作辅助。禁止用于金融、支付、电商抢购、验证码、游戏作弊等自动化场景。项目不 root、不 hook、不隐藏无障碍服务、不规避任何应用风控；内置受保护应用名单仅作防误触。
+
+---
+
+## 1. 能承诺什么 / 不能承诺什么
+
+| 项 | 结论 |
+|---|---|
+| 配置粒度 | 目标时刻可精确到毫秒（`yyyy-MM-dd HH:mm:ss.SSS`），间隔 1ms 起 |
+| 时间基准 | 开启校时后对齐**外部 NTP / UTC**；关闭校时时退回本机墙上时钟 |
+| 触发精度 | 前台 + 屏幕常亮下，GO 信号偏差 P95 ≤ ±30ms |
+| 端到端精度 | 约 **±50~100ms** = 校时误差（±10~50ms，取决于网络 RTT）+ 触发抖动（±30ms） |
+| 不承诺 | ±1ms 硬实时、后台/息屏唤醒、绝对 UTC 零偏差、进程被杀后仍精确 |
+| 后台运行 | 前台服务 + 常驻通知防止执行期间被回收；Android 无法 100% 保证不被 ROM 强杀 |
+
+Android 不是实时系统。「毫秒级可配置」「毫秒级显示」「毫秒级精确触发」是三件不同的事：状态栏只显示到分钟是系统 UI 的格式化选择；系统内部有 `currentTimeMillis()`（毫秒）与 `elapsedRealtimeNanos()`（纳秒单调时钟）。本项目把毫秒级的意义定位在**触发时刻可设定、可重复**，不是「看得见毫秒」。
+
+---
+
+## 2. 架构（v1.3）
+
+```
+表现层     Compose 界面 / 悬浮控制台 / 取点器（1px 微调）
+调度执行层 SchemeRepository · Scheduler(兜底提醒) · ClickEngine · RunGuard
+校时层     SntpClient · ClockModel(offset/drift) · ClockAnchor · PrecisionTimer · TriggerCalibration
+系统能力层 AccessibilityService(dispatchGesture) · 前台服务 · AlarmManager · WindowManager
+数据层     Room(方案/步骤/定时/日志) · DataStore(设置) · JSON 备份
+```
+
+触发链路：目标 UTC 时刻 → `ClockAnchor` 换算成 `elapsedRealtime()` 锚点 → `PrecisionTimer` 两阶段等待（Handler 粗等待 + 专用线程细等待）→ 发出 GO → 无障碍服务派发手势 → 写运行日志。
+
+- **不用 Choreographer**：帧回调被 VSYNC 锁在 16.7ms / 8.3ms，比独立线程轮询更差。
+- **不用精确闹钟权限**：`AlarmManager` 只提前 1 分钟发非唤醒提醒，不承担触发。
+- **不用 root / 隐藏 API**：SNTP 自行实现 48 字节 UDP 报文，未使用 `android.net.SntpClient`。
+
+---
+
+## 3. 构建
+
+本机（生成此工程的环境）没有 JDK / Gradle / Android SDK，因此**源码未经编译验证**，请在有环境的机器上构建：
+
+- JDK 17
+- Android Studio（Koala 或更新）+ Android SDK Platform 34 + Build Tools
+- Gradle 8.7（`gradle/wrapper/gradle-wrapper.properties` 已指定）
+
+```bash
+# 方式 A：Android Studio 打开根目录，Sync 后直接 Run
+# 方式 B：命令行（仓库已附带 wrapper jar 与 gradlew / gradlew.bat）
+./gradlew :app:assembleDebug     # Windows: gradlew.bat :app:assembleDebug
+```
+
+`gradle/wrapper/gradle-wrapper.jar` 取自 Gradle 8.7 官方发行版；`gradlew` / `gradlew.bat` 是精简启动脚本（官方脚本的等价最小实现）。产物在 `app/build/outputs/apk/debug/`。
+
+### GitHub Actions 自动构建
+
+`.github/workflows/android.yml` 在 push / PR / 手动触发时运行：JDK 17 → 安装 Android SDK 34 → `./gradlew :app:assembleDebug --no-daemon` → 上传 `floatick-debug-apk` 产物（保留 30 天，可直接下载安装）。构建失败时另上传 `build-diagnostics`（报告与日志）。
+
+**首次推送后请到仓库 Actions 页看第一次构建结果**：生成此工程的环境没有 JDK / Gradle / Android SDK，源码此前只做过静态自检，CI 是第一次真正的编译验证。若编译报错，把 Actions 日志贴回来即可定位修复。
+
+`local.properties` 不入库，CI 通过 runner 预置的 `ANDROID_HOME` 找到 SDK；`.gitattributes` 保证 `gradlew` 在 Linux runner 上是 LF 且可执行、`gradle-wrapper.jar` 按二进制处理。
+
+**依赖**：Kotlin 2.0 + Compose(BOM 2024.06) + Room 2.6.1 + Hilt 2.51.1 + DataStore，注解处理统一用 `kapt`（避免 KSP 与 Kotlin 2.0 的版本错配）。
+
+---
+
+## 4. 首次运行配置
+
+1. 侧载安装 APK。Android 13+ 对侧载应用启用「受限设置」：若无障碍开关是灰的，先到 **设置 → 应用 → Floatick → 右上 ⋮ → 允许受限设置**（需 PIN/指纹），再回无障碍页开启。重装或换签名后需重做一次。
+2. 打开 App 的「权限」页，逐项确认：无障碍服务、悬浮窗、通知。
+3. 授权是**系统级持久状态**：每次打开 App、重启手机都不用重开。只有卸载重装、换签名、系统升级、手动关闭或个别 ROM 回收权限时才需要重新开启。App 每次冷启动实时自检，掉授权时定时任务自动暂停。
+4. 在「校准」页验证时间基准；如开启校时，先在「设置」页填好可达的 NTP 服务器并打开开关。
+
+**银行 / 金融类 App 会限制**：它们通过 `getEnabledAccessibilityServiceList()`、`FLAG_SECURE`、overlay 检测与行为风控识别自动化，可能弹窗警告、禁用转账或中断会话。本项目不提供任何绕过方式；需要操作这类 App 时请临时关闭无障碍服务，用「一键全局停用」即可。
+
+---
+
+## 5. 校时与隐私
+
+- `INTERNET` 是安装期普通权限，**默认关闭**指的是应用逻辑：开关未打开时代码不发起任何网络请求。
+- 开启后仅向**用户填写的 NTP 服务器**发送 UDP 123 报文，不上传任何数据、不调用第三方 HTTP 时间接口。
+- 采样 8 次（可配 4~32），取最小 RTT 样本 + 中位数离群保护，估计 `offset` 与本机晶振 `drift`；结果有效期 10 分钟，过期后 UI 显示「未校时」。
+- 校时失败 / UDP 123 被运营商或企业 WiFi 拦截时，App 明确提示，且**开启校时但未成功时拒绝武装**，不会静默假装精确。
+- 目标时刻存 **UTC epoch millis**，显示按本地时区；倒计时全程用单调时钟，用户改系统时间或 NTP 跳变都不会污染触发点。
+
+---
+
+## 6. P0：真机验证（必须先做）
+
+源码里的精度是设计目标，**必须用目标机型实测后才能确认**：
+
+1. 「校准」页点「空跑 20 次测本机触发抖动」，记录 P50 / P95。若 P95 > 30ms，先调 `FINE_SPIN_WINDOW_MS`、检查是否绑到了主线程、或降低后台负载。
+2. 同一 WiFi 下多次校时，记录 offset 与 RTT；移动网络下再测一次，确认端到端偏差落在 ±100ms 内。
+3. 用「立即执行」验证手势：点击时长下限 20ms（更短会被系统丢弃），建议间隔 ≥50ms。
+4. 验证急停：悬浮窗 / 通知栏「停止」/ 页面「停止」都能在 500ms 内中断。
+5. 验证护栏：切到受保护应用、撤销无障碍授权、切后台息屏，分别确认任务停止或明确降级提示。
+
+---
+
+## 7. 已知限制
+
+- 精度只在 **App 前台 + 屏幕常亮**成立（`FLAG_KEEP_SCREEN_ON`，不需要 `WAKE_LOCK` 权限）。切后台、息屏、进程被杀后毫秒级立即失效，只保留分钟级提醒。
+- 坐标按屏幕比例存储，取点器支持 1px 微调；多显示器、折叠屏内外屏切换、部分分屏场景仍可能漂移。
+- `dispatchGesture` 单次有 10~40ms 派发开销，且极短手势会被系统合并；步骤间隔用协程 `delay`，抖动大于 GO 信号本身。
+- 重启后不做后台自动拉起（Android 12+ 限制从 `BOOT_COMPLETED` 启动前台服务），仅提示用户回来重新武装——这与「亮屏 + 人手动打开」的设计前提一致。
+- 受保护名单只做包名匹配，是尽力而为的防误触护栏，不能替代用户判断。
+
+---
+
+## 8. 目录
+
+```
+app/src/main/java/com/example/floatick/
+  core/       领域模型与常量上限
+  data/       Room 实体/DAO、Repository、DataStore、JSON 备份
+  time/       SNTP、ClockModel、ClockAnchor、PrecisionTimer、校准与空跑
+  system/     无障碍服务、前台服务、悬浮控制台、权限自检、通知、接收器
+  engine/     ClickEngine、RunGuard
+  ui/         Compose 界面、导航、ViewModel
+  di/         Hilt 模块
+```
+
+许可证：MIT（见 `LICENSE`）。

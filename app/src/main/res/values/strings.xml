@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Floatick</string>
+    <string name="accessibility_description">Floatick 使用无障碍服务在本机注入点击、长按与滑动手势，仅在用户主动启动任务时生效。本服务不读取屏幕内容、不联网、不收集任何数据。用户可随时在系统设置中关闭。</string>
+    <string name="channel_timer">定时任务</string>
+    <string name="channel_reminder">任务提醒</string>
+    <string name="notification_running">任务已武装，等待触发</string>
+    <string name="notification_running_text">保持本页亮屏，到点将执行模拟手势</string>
+    <string name="notification_stop">停止</string>
+    <string name="reminder_title">有定时任务待执行</string>
+    <string name="reminder_text">请打开 Floatick 并确认屏幕常亮，否则毫秒级触发不会生效</string>
+</resources>
