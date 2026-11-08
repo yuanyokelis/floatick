@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.floatick.core.ActionType
@@ -71,7 +72,7 @@ class SettingsRepository @Inject constructor(
 
     suspend fun snapshot(): AppSettings = settings.first()
 
-    private suspend fun write(block: Preferences.MutablePreferences.() -> Unit) {
+    private suspend fun write(block: MutablePreferences.() -> Unit) {
         context.settingsDataStore.edit { block(it) }
     }
 
