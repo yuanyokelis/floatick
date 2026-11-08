@@ -63,6 +63,21 @@ Android 不是实时系统。「毫秒级可配置」「毫秒级显示」「毫
 
 `local.properties` 不入库，CI 通过 runner 预置的 `ANDROID_HOME` 找到 SDK；`.gitattributes` 保证 `gradlew` 在 Linux runner 上是 LF 且可执行、`gradle-wrapper.jar` 按二进制处理。
 
+### 推送到 GitHub
+
+本地已完成 `git init -b main` 与首次提交，`.workbuddy/` 已加入 `.gitignore`。创建远程仓库需要你的 GitHub 授权，二选一：
+
+```bash
+# 方式 1：已安装并登录 GitHub CLI，一键建仓 + 推送
+gh repo create floatick --public --source=. --remote=origin --push
+
+# 方式 2：先在 GitHub 网页新建空仓库（不要初始化 README），然后
+git remote add origin https://github.com/<你的用户名>/floatick.git
+git push -u origin main
+```
+
+推送后 `main` 分支会自动触发 Actions 首次构建；到 Actions 页下载 `floatick-debug-apk` 即可安装。
+
 **依赖**：Kotlin 2.0 + Compose(BOM 2024.06) + Room 2.6.1 + Hilt 2.51.1 + DataStore，注解处理统一用 `kapt`（避免 KSP 与 Kotlin 2.0 的版本错配）。
 
 ---
