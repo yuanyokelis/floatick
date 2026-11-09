@@ -47,14 +47,21 @@ jobs:
           disable-animations: true
           script: |
             adb install -r app/build/outputs/apk/debug/app-debug.apk
+            # 预授权，覆盖用户真机上「通知已开 + 悬浮窗已开」的路径
+            adb shell pm grant com.example.floatick android.permission.POST_NOTIFICATIONS || true
+            adb shell appops set com.example.floatick SYSTEM_ALERT_WINDOW allow || true
+            echo "=== appops overlay ==="
+            adb shell appops get com.example.floatick SYSTEM_ALERT_WINDOW || true
             adb logcat -c || true
             adb shell am start -n com.example.floatick/.ui.MainActivity || true
-            sleep 12
+            sleep 15
             adb logcat -d -v brief > "$GITHUB_WORKSPACE/emulator-logcat.txt" || true
-            echo "=== FATAL / AndroidRuntime ==="
-            grep -iE "FATAL|AndroidRuntime|Force finishing|Process: com.example.floatick" "$GITHUB_WORKSPACE/emulator-logcat.txt" || echo "(no crash signature found)"
+            echo "=== FATAL / AndroidRuntime / overlay errors ==="
+            grep -iE "FATAL|AndroidRuntime|Force finishing|Process: com.example.floatick|BadTokenException|overlay|addView|WindowManager" "$GITHUB_WORKSPACE/emulator-logcat.txt" | head -40 || echo "(no crash signature found)"
+            echo "=== app process alive? ==="
+            adb shell pidof com.example.floatick || echo "NOT RUNNING"
             echo "=== top activity ==="
-            adb shell dumpsys activity activities | grep -i floatick | head -20 || true
+            adb shell dumpsys activity activities | grep -i "topActivity.*floatick" | head -5 || true
 
       - name: Upload logcat
         if: always()
