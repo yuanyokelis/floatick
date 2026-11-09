@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.floatick.system.ClickAccessibilityService
 import com.example.floatick.system.PermissionCheck
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,6 +37,7 @@ import com.example.floatick.system.PermissionCheck
 fun PermissionScreen(nav: NavController) {
     val context = LocalContext.current
     var state by remember { mutableStateOf(PermissionCheck.snapshot(context)) }
+    val serviceConnected by ClickAccessibilityService.connected.collectAsState()
 
     Scaffold(
         topBar = {
@@ -54,6 +56,14 @@ fun PermissionScreen(nav: NavController) {
                 .verticalScroll(rememberScrollState())
         ) {
             Text("每次冷启动都会实时自检，状态不缓存。掉授权时所有定时任务自动暂停。")
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "服务连接：${if (serviceConnected) "已连接（可以执行点击）" else "未连接（不会执行任何点击）"}",
+                style = MaterialTheme.typography.titleSmall,
+                color = if (serviceConnected)
+                    MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.error
+            )
             Spacer(Modifier.height(8.dp))
             Button(onClick = { state = PermissionCheck.snapshot(context) }) {
                 Text("重新检测")

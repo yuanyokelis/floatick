@@ -17,6 +17,7 @@ import com.example.floatick.data.SettingsRepository
 import com.example.floatick.system.ClickAccessibilityService
 import com.example.floatick.system.ClickForegroundService
 import com.example.floatick.system.FloatingConsole
+import com.example.floatick.system.ForegroundApp
 import com.example.floatick.system.PermissionCheck
 import com.example.floatick.system.Scheduler
 import com.example.floatick.time.ClockAnchor
@@ -37,6 +38,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.floatick.core.Step
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
@@ -127,6 +129,25 @@ class ClickEngine @Inject constructor(
         cancelInternal()
         _state.value = EngineState(message = "已停止")
         console.update(_state.value)
+    }
+
+    /** 只发一次手势并回报系统是否接受，用来区分「没派发」和「派发了但目标没响应」。 */
+    suspend fun diagnoseOnce(scheme: Scheme): String = withContext(Dispatchers.Main) {
+        val service = ClickAccessibilityService.current()
+            ?: return@withContext "诊断失败：无障碍服务未连接"
+        val step = scheme.effectiveSteps.firstOrNull() ?: Step()
+        val w = service.screenWidthPx.toFloat()
+        val h = service.screenHeightPx.toFloat()
+        val x = step.xRatio * w
+        val y = step.yRatio * h
+        val duration = step.durationMs.coerceAtLeast(Limits.MIN_GESTURE_DURATION_MS)
+        val accepted = service.performTap(x, y, duration)
+        val msg = "诊断：dispatchGesture=$accepted · 坐标(${x.toInt()}, ${y.toInt()})" +
+            " · 屏幕 ${w.toInt()}×${h.toInt()} · 前台 ${ForegroundApp.current() ?: "未知"}" +
+            " · 按下 ${duration}ms"
+        _state.value = EngineState(message = msg)
+        console.update(_state.value)
+        msg
     }
 
     private suspend fun CoroutineScope.execute(

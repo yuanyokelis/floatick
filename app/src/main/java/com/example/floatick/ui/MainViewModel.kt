@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -60,6 +61,24 @@ class MainViewModel @Inject constructor(
 
     private val _backupText = MutableStateFlow("")
     val backupText: StateFlow<String> = _backupText.asStateFlow()
+
+    private var lastForwardedError = ""
+
+    init {
+        // 引擎的失败原因不能只写在悬浮框里：悬浮框一旦被 ROM 回收，
+        // 用户就完全看不到「为什么没点击」。这里把错误类消息同步弹成对话框。
+        viewModelScope.launch {
+            engine.state.collect { state ->
+                val msg = state.message
+                if (msg.isNotBlank() && msg != lastForwardedError &&
+                    ERROR_HINTS.any { msg.contains(it) }
+                ) {
+                    lastForwardedError = msg
+                    _message.value = msg
+                }
+            }
+        }
+    }
 
     fun notify(text: String) {
         _message.value = text
@@ -113,6 +132,14 @@ class MainViewModel @Inject constructor(
         val rule = ScheduleRule(scheme.id, triggerUtcMillis, true)
         repository.putSchedule(rule)
         engine.arm(scheme, rule)
+    }
+
+    /** 3 秒后发一次手势并回报派发结果，用于快速定位「到底点没点」。 */
+    fun diagnose(scheme: Scheme) = viewModelScope.launch {
+        if (!requireAccessibility()) return@launch
+        _message.value = "3 秒后在当前前台窗口点击一次，请立刻切到目标页面"
+        delay(3_000L)
+        _message.value = engine.diagnoseOnce(scheme)
     }
 
     /** 给一点时间切到目标 App 后再触发，用它验证点击是否真的生效。 */
@@ -220,5 +247,13 @@ class MainViewModel @Inject constructor(
 
     fun onBackupTextChange(text: String) {
         _backupText.value = text
+    }
+
+    private companion object {
+        val ERROR_HINTS = listOf(
+            "未连接", "未开", "已过", "尚未成功校时", "启动受限",
+            "全局停用", "前台服务", "PERMISSION_LOST", "PROTECTED_APP",
+            "SCREEN_OFF", "已结束"
+        )
     }
 }

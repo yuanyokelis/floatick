@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -186,6 +187,7 @@ private fun SchemeCard(scheme: Scheme, vm: MainViewModel, nav: NavController) {
                 TextButton(onClick = { nav.navigate("edit/${scheme.id}") }) { Text("编辑") }
                 TextButton(onClick = { nav.navigate("schedule/${scheme.id}") }) { Text("定时") }
                 TextButton(onClick = { vm.startNow(scheme) }) { Text("立即执行") }
+                TextButton(onClick = { vm.diagnose(scheme) }) { Text("诊断") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { vm.armDelayed(scheme) }) { Text("延迟5秒") }
@@ -216,6 +218,11 @@ fun SchemeEditScreen(
     var steps by remember { mutableStateOf(listOf(Step())) }
     var pickerTarget by remember { mutableStateOf(-1) }
     val picked by vm.picked.collectAsState()
+
+    // 离开编辑页就关掉取点器，避免它跨页面一直悬浮挡住内容。
+    DisposableEffect(Unit) {
+        onDispose { console.hidePicker() }
+    }
 
     LaunchedEffect(schemeId) {
         if (schemeId != 0L) {

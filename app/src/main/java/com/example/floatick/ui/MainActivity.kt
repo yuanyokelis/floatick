@@ -3,6 +3,7 @@ package com.example.floatick.ui
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.example.floatick.engine.ClickEngine
@@ -30,6 +31,13 @@ class MainActivity : ComponentActivity() {
                 AppNav(engine = engine, console = console)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 每次回到前台都确保悬浮控制台存在：ROM 可能回收 overlay，
+        // 或上一次 hide() 清空了回调，导致「悬浮框不出现、看不到错误提示」。
+        if (Settings.canDrawOverlays(this)) console.ensureVisible()
     }
 
     override fun onDestroy() {
