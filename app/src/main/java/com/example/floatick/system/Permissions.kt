@@ -1,6 +1,7 @@
 package com.example.floatick.system
 
 import android.Manifest
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
@@ -10,7 +11,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
-import android.view.accessibility.AccessibilityServiceInfo
 
 data class PermissionState(
     val accessibility: Boolean,
