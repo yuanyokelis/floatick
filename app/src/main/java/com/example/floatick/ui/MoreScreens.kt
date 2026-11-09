@@ -2,6 +2,7 @@ package com.example.floatick.ui
 
 import android.Manifest
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -30,7 +31,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.PackageInfoCompat
 import androidx.navigation.NavController
@@ -151,6 +154,8 @@ fun CalibrationScreen(vm: MainViewModel, nav: NavController) {
     var advanceText by remember(settings.advanceMs) {
         mutableStateOf(settings.advanceMs.toString())
     }
+    val clipboard = LocalClipboardManager.current
+    val ctx = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -195,6 +200,36 @@ fun CalibrationScreen(vm: MainViewModel, nav: NavController) {
             Button(onClick = {
                 advanceText.toLongOrNull()?.let { vm.setAdvanceMs(it) }
             }) { Text("保存提前量") }
+
+            // 真机实测时把结论一次性带出来，省得对着屏幕分数值手抄。
+            Button(onClick = {
+                val report = buildString {
+                    appendLine("Floatick 校准报告")
+                    appendLine(
+                        "设备：${Build.MANUFACTURER} ${Build.MODEL}" +
+                            " · Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})"
+                    )
+                    appendLine("校时开关：${if (settings.syncEnabled) "开启" else "关闭"}")
+                    appendLine("校时消息：${sync.message}")
+                    appendLine(
+                        "offset ${sync.offsetMs}ms · RTT ${sync.rttMs}ms" +
+                            " · 成功样本 ${sync.sampleCount}" +
+                            " · ${if (vm.isSynced()) "校时有效" else "未校时（用本机时钟）"}"
+                    )
+                    appendLine(
+                        "空跑：" + (benchmark?.let {
+                            "P50 ${it.p50Ms}ms / P95 ${it.p95Ms}ms / ${it.count} 次"
+                        } ?: "未测")
+                    )
+                    appendLine("历史偏差：样本 ${stats.count} · P50 ${stats.p50Ms}ms · P95 ${stats.p95Ms}ms")
+                    appendLine("advanceMs：${settings.advanceMs}")
+                    appendLine(
+                        "无障碍服务：${if (ClickAccessibilityService.isConnected()) "已连接" else "未连接"}"
+                    )
+                }
+                clipboard.setText(AnnotatedString(report))
+                Toast.makeText(ctx, "报告已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            }) { Text("复制校准报告") }
 
             Spacer(Modifier.height(8.dp))
             Text(
