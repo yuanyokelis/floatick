@@ -46,6 +46,12 @@ class ClickForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onDestroy() {
+        // 通知引擎「服务已经没了」，否则它会在下一次启动时误以为服务还活着而不去拉起。
+        runCatching { engine.onForegroundServiceStopped() }
+        super.onDestroy()
+    }
+
     /**
      * 保证 startForeground 一定被调用、且异常不逃出去。
      *

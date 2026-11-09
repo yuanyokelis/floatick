@@ -70,9 +70,20 @@ class ClickEngine @Inject constructor(
     private var armedSchemeId: Long = 0L
 
     /** 前台服务生命周期跟踪：避免「刚 startForegroundService 就 stopService」把进程带崩。 */
-    private var fgRunning = false
+    @Volatile private var fgRunning = false
+    @Volatile private var fgServiceAlive = false
     private var fgStartedAtElapsed = 0L
     private var fgStopJob: Job? = null
+
+    /**
+     * 服务已销毁（含用户点通知栏「停止」、系统回收）。
+     * 不同步这一步，引擎会以为服务还活着，后续「武装」就不再启动它——
+     * 结果是这一次执行没有常驻通知保活。
+     */
+    fun onForegroundServiceStopped() {
+        fgRunning = false
+        fgServiceAlive = false
+    }
 
     /** 武装一次性定时任务。要求此时 App 前台、屏幕常亮、无障碍已连接。 */
     suspend fun arm(scheme: Scheme, rule: ScheduleRule) {
@@ -324,9 +335,8 @@ class ClickEngine @Inject constructor(
         // 反复重启同一个前台服务会让框架把新的启动命令投给正在销毁的实例，
         // onCreate 不重跑 → 少调一次 startForeground → 5 秒后
         // ForegroundServiceDidNotStartInTimeException。
-        val pendingStop = fgStopJob
-        if (pendingStop != null && pendingStop.isActive) {
-            pendingStop.cancel()
+        if (fgServiceAlive) {
+            fgStopJob?.cancel()
             fgStopJob = null
             fgRunning = true
             return
@@ -341,6 +351,7 @@ class ClickEngine @Inject constructor(
             }
         }.onSuccess {
             fgRunning = true
+            fgServiceAlive = true
             fgStartedAtElapsed = SystemClock.elapsedRealtime()
         }.onFailure { error ->
             _state.value = _state.value.copy(
