@@ -41,7 +41,7 @@ Android 不是实时系统。「毫秒级可配置」「毫秒级显示」「毫
 
 ## 3. 构建
 
-本机（生成此工程的环境）没有 JDK / Gradle / Android SDK，因此**源码未经编译验证**，请在有环境的机器上构建：
+本机（生成此工程的环境）没有 JDK / Gradle / Android SDK，因此**全部编译与验证都通过 GitHub Actions 完成**，每次改动的结论以 Actions 结果为准（含模拟器冒烟启动测试）。本地构建需要：
 
 - JDK 17
 - Android Studio（Koala 或更新）+ Android SDK Platform 34 + Build Tools
@@ -59,7 +59,7 @@ Android 不是实时系统。「毫秒级可配置」「毫秒级显示」「毫
 
 `.github/workflows/android.yml` 在 push / PR / 手动触发时运行：JDK 17 → 安装 Android SDK 34 → `./gradlew :app:assembleDebug --no-daemon` → 上传 `floatick-debug-apk` 产物（保留 30 天，可直接下载安装）。构建失败时另上传 `build-diagnostics`（报告与日志）。
 
-**CI 已验证通过**：首次构建暴露出 `DataStore.MutablePreferences` 类型写错（13 个编译错误），已修复；第二次构建 `assembleDebug` 成功并产出 APK。生成此工程的环境没有 JDK / Gradle / Android SDK，所以每次改动都以 Actions 结果为准。
+**CI 已验证通过**：首次构建暴露出 `DataStore.MutablePreferences` 类型写错（13 个编译错误），已修复；此后每次 `assembleDebug` 均通过并产出 APK，`smoke.yml` 的模拟器启动测试也稳定通过（`FATAL EXCEPTION` / `ANR` / `GrantPermissionsActivity` 抢占前台均为 0 次）。
 
 `local.properties` 不入库，CI 通过 runner 预置的 `ANDROID_HOME` 找到 SDK；`.gitattributes` 保证 `gradlew` 在 Linux runner 上是 LF 且可执行、`gradle-wrapper.jar` 按二进制处理。
 
@@ -151,7 +151,7 @@ git push -u origin main
 
 1. 「校准」页点「空跑 20 次测本机触发抖动」，记录 P50 / P95。若 P95 > 30ms，先调 `FINE_SPIN_WINDOW_MS`、检查是否绑到了主线程、或降低后台负载。
 2. 同一 WiFi 下多次校时，记录 offset 与 RTT；移动网络下再测一次，确认端到端偏差落在 ±100ms 内。
-3. 用「立即执行」验证手势：点击时长下限 20ms（更短会被系统丢弃），建议间隔 ≥50ms。
+3. 用「立即执行」验证手势：按下时长保持默认 80ms（下限 50ms，更短会被部分 View 当成无效触摸或直接被系统合并），步骤间隔建议 ≥50ms。
 4. 验证急停：悬浮窗 / 通知栏「停止」/ 页面「停止」都能在 500ms 内中断。
 5. 验证护栏：切到受保护应用、撤销无障碍授权、切后台息屏，分别确认任务停止或明确降级提示。
 
@@ -185,3 +185,14 @@ app/src/main/java/com/example/floatick/
 ```
 
 许可证：MIT（见 `LICENSE`）。
+
+---
+
+## 9. 版本记录
+
+| 版本 | 变更 |
+|---|---|
+| **0.2.0** | 修复「打开就闪一下消失」：移除启动时自动请求通知权限，改由「权限」页按需申请；引擎错误从悬浮框小字提升为 App 内对话框 + 首页状态卡；悬浮按钮改为「立即 / 武装 / 停止 / 取点」以免误解；取点器拆成可拖十字 + 固定顶栏（可到屏幕边缘）；`按下时长` 默认 80ms、下限 50ms；新增「延迟 5 秒」方案便于真机验证、`诊断` 按钮（回报 `dispatchGesture` 结果 / 像素坐标 / 前台包名）、权限页「服务连接」状态；CI 改用仓库内固定调试签名，可覆盖安装；设置页显示版本号；新增模拟器冒烟启动测试。 |
+| 0.1.0 | 首个可构建版本：四层架构、Room/DataStore、SNTP 校时、两阶段精确定时、手势注入、悬浮控制台、JSON 备份。 |
+
+> 版本号显示在「设置」页最底部；`versionCode` 每次发版递增，便于确认手机上装的是哪一版。

@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.pm.PackageInfoCompat
 import androidx.navigation.NavController
 import com.example.floatick.system.ClickAccessibilityService
 import com.example.floatick.system.PermissionCheck
@@ -228,6 +229,15 @@ fun SettingsScreen(vm: MainViewModel, nav: NavController) {
     var protectedText by remember(settings.protectedPackages) {
         mutableStateOf(settings.protectedPackages.joinToString("\n"))
     }
+    val context = LocalContext.current
+    // 侧载迭代时经常分不清手机上装的是哪一版，这里直接把 versionName /
+    // versionCode 打出来，和 CI 产物一一对应。
+    val versionLabel = remember(context) {
+        runCatching {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            "v${info.versionName} (versionCode ${PackageInfoCompat.getLongVersionCode(info)})"
+        }.getOrElse { "版本未知" }
+    }
 
     Scaffold(
         topBar = {
@@ -299,6 +309,13 @@ fun SettingsScreen(vm: MainViewModel, nav: NavController) {
             Text(
                 "隐私：默认不联网、不收集数据、不读取屏幕内容" +
                     "（无障碍配置中 canRetrieveWindowContent=false）。"
+            )
+
+            Spacer(Modifier.height(24.dp))
+            Text("Floatick $versionLabel", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "自用开源构建 · 调试签名 · 仅用于本机合法的重复操作辅助",
+                style = MaterialTheme.typography.bodySmall
             )
         }
     }
