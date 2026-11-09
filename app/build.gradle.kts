@@ -18,7 +18,23 @@ android {
         versionName = "0.1.0"
     }
 
+    // GitHub Actions 每次都是全新 runner，Android 默认的 debug.keystore
+    // 会在每台机器上随机生成，导致每个版本的 APK 签名不同、无法覆盖安装。
+    // 这里改用仓库内固定的调试密钥，保证 CI 产出的每个版本签名一致。
+    signingConfigs {
+        create("ciDebug") {
+            storeFile = file("ci-debug.keystore")
+            storeType = "pkcs12"
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("ciDebug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

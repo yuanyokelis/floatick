@@ -63,6 +63,20 @@ Android 不是实时系统。「毫秒级可配置」「毫秒级显示」「毫
 
 `local.properties` 不入库，CI 通过 runner 预置的 `ANDROID_HOME` 找到 SDK；`.gitattributes` 保证 `gradlew` 在 Linux runner 上是 LF 且可执行、`gradle-wrapper.jar` 按二进制处理。
 
+### 安装与覆盖安装
+
+CI 产出的 debug APK 使用仓库内固定的 `app/ci-debug.keystore` 签名（PKCS12，alias `androiddebugkey`，密码 `android`）。**同一仓库此后每次构建的签名都一致，可以直接覆盖安装**，不会出现「更新包与已安装应用的签名不一致」。
+
+之所以要显式固定：GitHub Actions 每次都是全新虚拟机，Android 默认的 `debug.keystore` 会在每台机器上随机生成，早期版本因此每个包的签名都不同。这个密钥**仅用于调试包**，按设计不是秘密（开源项目提交 debug keystore 是常见做法），**不能用于正式发布**。
+
+> **从 2026-11-09 之前的旧包升级，必须先卸载一次**（签名不同，Android 会拒绝覆盖）：
+> 1. 打开 App →「设置」→ 配置备份 → **导出到文本框**，长按复制 JSON 保存到别处；
+> 2. 卸载旧版，安装新 APK；
+> 3. 打开 App →「设置」→ 把 JSON 粘回文本框 → **从文本框导入**；
+> 4. 卸载会清除无障碍授权，按第 4 节重新开启（含 Android 13+ 的「允许受限设置」）。
+>
+> 完成这一次之后，后续版本就不用再卸载了。
+
 ### 推送到 GitHub
 
 本地已完成 `git init -b main` 与首次提交，`.workbuddy/` 已加入 `.gitignore`。创建远程仓库需要你的 GitHub 授权，二选一：
