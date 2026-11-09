@@ -116,6 +116,16 @@ class ClickEngine @Inject constructor(
         if (cfg.globalDisabled) return fail("已全局停用，请在设置页恢复")
         if (!ClickAccessibilityService.isConnected()) return fail("无障碍服务未连接")
 
+        // 「立即」是在**当时的前台窗口**上注入手势。人在 Floatick 里点它，
+        // 手势就会落在 Floatick 自己的界面上，看起来像「跳回/打开了自己」。
+        // 与其静默做无用功，不如直接说清楚该怎么做。
+        if (ForegroundApp.current() == context.packageName) {
+            return fail(
+                "当前前台就是 Floatick 自己，点了只会点到自己。" +
+                    "请先切到目标 App 再点「立即」，或改用「延迟 5 秒」留出切换时间"
+            )
+        }
+
         val synced = clockModel.isFresh()
         _state.value = EngineState(
             running = true,

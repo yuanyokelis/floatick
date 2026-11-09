@@ -129,6 +129,23 @@ class MainViewModel @Inject constructor(
 
     fun stop() = engine.stop()
 
+    /**
+     * 悬浮控制台「5秒」：默认方案 5 秒后触发一次，留出切到目标 App 的时间。
+     * 刻意不写 `_message`——人往往已经切走，App 内对话框等回到前台才弹，反而像「莫名其妙报错」；
+     * 状态由悬浮台的状态行自己显示。
+     */
+    fun armDelayedFirst() = viewModelScope.launch {
+        val first = repository.all().firstOrNull()
+        if (first == null) {
+            _message.value = "还没有方案，请先新建"
+            return@launch
+        }
+        if (!requireAccessibility()) return@launch
+        val rule = ScheduleRule(first.id, clockModel.nowUtcMs() + 5_000L, true)
+        repository.putSchedule(rule)
+        engine.arm(first, rule)
+    }
+
     fun arm(scheme: Scheme, triggerUtcMillis: Long) = viewModelScope.launch {
         if (!requireAccessibility()) return@launch
         val rule = ScheduleRule(scheme.id, triggerUtcMillis, true)
@@ -235,6 +252,36 @@ class MainViewModel @Inject constructor(
     fun consumePicked() {
         _picked.value = null
     }
+
+    /**
+     * 悬浮台「取点」专用。
+     *
+     * 控制台的「立即 / 武装」操作的是第一个方案，所以取点也必须落到同一个方案——
+     * 以前这里走的是 [setPicked]，坐标只进了 `_picked` 这个 StateFlow，
+     * 而消费它的只有编辑页；人在桌面点「取点」时编辑页根本没在组合，
+     * 于是十字消失后什么都没发生，看起来就是「没反应」。
+     */
+    fun applyConsolePick(x: Float, y: Float, onHint: (String) -> Unit) = viewModelScope.launch {
+        val scheme = repository.all().firstOrNull()
+        if (scheme == null) {
+            onHint("还没有方案：先回 App 新建并保存一个方案，再来取点")
+            return@launch
+        }
+        val steps = scheme.effectiveSteps
+        val updated = scheme.copy(
+            steps = steps.mapIndexed { index, step ->
+                if (index == 0) step.copy(xRatio = x, yRatio = y) else step
+            }
+        )
+        repository.save(updated)
+        val text = "已把「${scheme.name}」第 1 步改到 " +
+            "X=${round3(x)} Y=${round3(y)}" +
+            (if (steps.size > 1) "（多步骤方案只改了第 1 步）" else "")
+        onHint(text)
+    }
+
+    private fun round3(value: Float): String =
+        String.format(java.util.Locale.US, "%.3f", value)
 
     fun exportBackup() = viewModelScope.launch {
         _backupText.value = backupManager.exportJson()

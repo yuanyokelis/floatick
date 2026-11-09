@@ -65,6 +65,7 @@ class FloatingConsole @Inject constructor(
     private data class Callbacks(
         val onStart: () -> Unit,
         val onArm: () -> Unit,
+        val onDelay: () -> Unit,
         val onStop: () -> Unit,
         val onPick: () -> Unit
     )
@@ -72,6 +73,7 @@ class FloatingConsole @Inject constructor(
     private fun activeCallbacks(): Callbacks = callbacks ?: Callbacks(
         onStart = { openMain() },
         onArm = { openMain() },
+        onDelay = { openMain() },
         onStop = {},
         onPick = {}
     )
@@ -88,10 +90,11 @@ class FloatingConsole @Inject constructor(
     fun show(
         onStart: () -> Unit,
         onArm: () -> Unit,
+        onDelay: () -> Unit,
         onStop: () -> Unit,
         onPick: () -> Unit
     ) {
-        callbacks = Callbacks(onStart, onArm, onStop, onPick)
+        callbacks = Callbacks(onStart, onArm, onDelay, onStop, onPick)
         dismissed = false
         mainHandler.post { ensureShown() }
     }
@@ -107,6 +110,19 @@ class FloatingConsole @Inject constructor(
         mainHandler.post {
             ensureShown()
             statusView?.text = formatState(state)
+        }
+    }
+
+    /**
+     * 在状态行显示一条一次性提示（不经过引擎）。
+     * 取点确认后用户往往还停在别的 App 上，App 内对话框看不见，
+     * 只有控制台这一行是「一定能看到」的反馈位。
+     * 不改 lastState：下一次引擎状态更新或面板重建时，这里自动回到真实状态。
+     */
+    fun hint(text: String) {
+        mainHandler.post {
+            ensureShown()
+            statusView?.text = text
         }
     }
 
@@ -138,7 +154,10 @@ class FloatingConsole @Inject constructor(
             setTextSize(11f)
         }
         val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+        // 「立即」落在**当时的前台窗口**上：人在桌面按它，点到的就是桌面图标；
+        // 所以在它旁边放一个「5秒」，留出切到目标 App 的时间。
         row.addView(smallButton("立即") { activeCallbacks().onStart() }, weighted())
+        row.addView(smallButton("5秒") { activeCallbacks().onDelay() }, weighted())
         row.addView(smallButton("武装") { activeCallbacks().onArm() }, weighted())
         row.addView(smallButton("停止") { activeCallbacks().onStop() }, weighted())
         row.addView(smallButton("取点") { activeCallbacks().onPick() }, weighted())
@@ -175,7 +194,12 @@ class FloatingConsole @Inject constructor(
     fun showPicker(onPicked: (xRatio: Float, yRatio: Float) -> Unit) {
         this.onPicked = onPicked
         mainHandler.post {
-            if (pickerCross != null) return@post
+            // 已经在取点中时不要静默 return：用户按了按钮却什么都没发生，
+            // 就会以为「取点没反应」。告诉他十字在哪、下一步按什么。
+            if (pickerCross != null) {
+                hint("取点器已在屏幕上：拖动红色十字，再点屏幕顶部的「确定」")
+                return@post
+            }
             val dm = Resources.getSystem().displayMetrics
             val size = crossSize
 
@@ -254,6 +278,8 @@ class FloatingConsole @Inject constructor(
                 pickerLabel = label
                 lastOverlayError = null
                 updatePickerLabel()
+                // 十字只有一条细红线，容易看漏；在控制台写明下一步做什么。
+                hint("取点中：拖动红十字，点顶部「确定」写入第一个方案")
             } catch (e: Throwable) {
                 lastOverlayError = "取点器添加失败：${e.javaClass.simpleName}: ${e.message}"
                 runCatching { wm.removeView(cross) }

@@ -49,8 +49,13 @@ fun AppNav(
             console.show(
                 onStart = { vm.startFirstScheme() },
                 onArm = { vm.armSavedFirst() },
+                onDelay = { vm.armDelayedFirst() },
                 onStop = { vm.stop() },
-                onPick = { console.showPicker { x, y -> vm.setPicked(x, y) } }
+                onPick = {
+                    console.showPicker { x, y ->
+                        vm.applyConsolePick(x, y) { console.hint(it) }
+                    }
+                }
             )
         }
     }
