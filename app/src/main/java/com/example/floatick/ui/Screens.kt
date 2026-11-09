@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
@@ -35,9 +36,11 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.floatick.core.ActionType
 import com.example.floatick.core.EngineState
+import com.example.floatick.core.Limits
 import com.example.floatick.core.Scheme
 import com.example.floatick.core.SchemeType
 import com.example.floatick.core.Step
+import com.example.floatick.system.ClickAccessibilityService
 import com.example.floatick.system.FloatingConsole
 import com.example.floatick.system.PermissionCheck
 import com.example.floatick.system.PermissionState
@@ -105,6 +108,7 @@ private fun StatusCard(
     onGoPermissions: () -> Unit,
     onStop: () -> Unit
 ) {
+    val serviceConnected by ClickAccessibilityService.connected.collectAsState()
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(
@@ -116,11 +120,47 @@ private fun StatusCard(
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(Modifier.height(4.dp))
-            Text("时间基准：${if (synced) "已校时（UTC）" else "未校时 · 本机时钟"}")
             Text(
                 "权限：无障碍 ${if (permissions.accessibility) "已开" else "未开"}" +
+                    " / 服务 ${if (serviceConnected) "已连接" else "未连接"}" +
                     " / 悬浮窗 ${if (permissions.overlay) "已开" else "未开"}" +
                     " / 通知 ${if (permissions.notifications) "已开" else "未开"}",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            if (!permissions.accessibility || !serviceConnected) {
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text(
+                            "无法点击：无障碍服务未开启或未连接",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            "Android 13+ 侧载需先到「设置 → 应用 → Floatick → 右上 ⋮ → 允许受限设置」，" +
+                                "再到「设置 → 无障碍 → 已安装的应用 → Floatick」打开开关；" +
+                                "若已打开仍显示未连接，请关闭再打开一次，然后回来点「重新检测」。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        TextButton(onClick = onGoPermissions) { Text("打开权限页") }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "时间基准：${if (synced) "已校时（UTC）" else "未校时 · 本机时钟"}",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                "「立即执行 / 悬浮框的立即」= 马上点击当前前台窗口；" +
+                    "要点其它 App，请先用「定时」设一个未来时刻并武装，再切到目标 App 等待触发。",
                 style = MaterialTheme.typography.bodySmall
             )
             Row {
@@ -148,10 +188,15 @@ private fun SchemeCard(scheme: Scheme, vm: MainViewModel, nav: NavController) {
                 TextButton(onClick = { vm.startNow(scheme) }) { Text("立即执行") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { vm.armDelayed(scheme) }) { Text("延迟5秒") }
                 TextButton(onClick = { vm.cancelArm(scheme.id) }) { Text("取消定时") }
                 TextButton(onClick = { vm.stop() }) { Text("停止") }
                 TextButton(onClick = { vm.delete(scheme.id) }) { Text("删除") }
             }
+            Text(
+                "「延迟5秒」用于验证：点完立刻切到目标 App，保持亮屏等 5 秒。",
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
@@ -304,7 +349,11 @@ private fun StepEditor(
                 RatioField("终点 X (0~1)", step.endXRatio) { onUpdate(step.copy(endXRatio = it)) }
                 RatioField("终点 Y (0~1)", step.endYRatio) { onUpdate(step.copy(endYRatio = it)) }
             }
-            LongField("手势时长 ms（点击/长按/滑动均生效）", step.durationMs, 20L) {
+            LongField(
+                "按下时长 ms（默认 80，接近人手；点击/长按/滑动均生效）",
+                step.durationMs,
+                Limits.MIN_GESTURE_DURATION_MS
+            ) {
                 onUpdate(step.copy(durationMs = it))
             }
             LongField("本步后额外等待 ms", step.delayAfterMs, 0L) {

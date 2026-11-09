@@ -11,6 +11,7 @@ import com.example.floatick.data.RunLogEntity
 import com.example.floatick.data.SchemeRepository
 import com.example.floatick.data.SettingsRepository
 import com.example.floatick.engine.ClickEngine
+import com.example.floatick.system.ClickAccessibilityService
 import com.example.floatick.time.CalibrationStats
 import com.example.floatick.time.ClockModel
 import com.example.floatick.time.DryRunBenchmark
@@ -83,13 +84,24 @@ class MainViewModel @Inject constructor(
         _message.value = "方案已删除"
     }
 
-    fun startNow(scheme: Scheme) = viewModelScope.launch { engine.startNow(scheme) }
+    private suspend fun requireAccessibility(): Boolean {
+        if (ClickAccessibilityService.isConnected()) return true
+        _message.value =
+            "无障碍服务未连接，手势不会生效。请到「权限」页开启；" +
+                "Android 13+ 侧载需先在应用详情页选择「允许受限设置」。" +
+                "若已开启，请关闭再打开一次后点「重新检测」。"
+        return false
+    }
+
+    fun startNow(scheme: Scheme) = viewModelScope.launch {
+        if (requireAccessibility()) engine.startNow(scheme)
+    }
 
     fun startFirstScheme() = viewModelScope.launch {
         val first = repository.all().firstOrNull()
         if (first == null) {
             _message.value = "还没有方案，请先新建"
-        } else {
+        } else if (requireAccessibility()) {
             engine.startNow(first)
         }
     }
@@ -97,9 +109,34 @@ class MainViewModel @Inject constructor(
     fun stop() = engine.stop()
 
     fun arm(scheme: Scheme, triggerUtcMillis: Long) = viewModelScope.launch {
+        if (!requireAccessibility()) return@launch
         val rule = ScheduleRule(scheme.id, triggerUtcMillis, true)
         repository.putSchedule(rule)
         engine.arm(scheme, rule)
+    }
+
+    /** 给一点时间切到目标 App 后再触发，用它验证点击是否真的生效。 */
+    fun armDelayed(scheme: Scheme, delayMs: Long = 5_000L) = viewModelScope.launch {
+        if (!requireAccessibility()) return@launch
+        val rule = ScheduleRule(scheme.id, clockModel.nowUtcMs() + delayMs, true)
+        repository.putSchedule(rule)
+        engine.arm(scheme, rule)
+        _message.value = "已武装：${delayMs / 1000} 秒后点击当前前台窗口，请立刻切到目标页面"
+    }
+
+    /** 悬浮控制台「武装」：用已保存的定时规则重新启动等待。 */
+    fun armSavedFirst() = viewModelScope.launch {
+        val first = repository.all().firstOrNull()
+        if (first == null) {
+            _message.value = "还没有方案，请先新建"
+            return@launch
+        }
+        val rule = repository.scheduleFor(first.id)
+        if (rule == null) {
+            _message.value = "还没设定时间，请先在该方案里点「定时」设置一个未来时刻"
+            return@launch
+        }
+        if (requireAccessibility()) engine.arm(first, rule)
     }
 
     fun cancelArm(schemeId: Long) = viewModelScope.launch {

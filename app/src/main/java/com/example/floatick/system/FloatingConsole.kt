@@ -56,13 +56,19 @@ class FloatingConsole @Inject constructor(
 
     private data class Callbacks(
         val onStart: () -> Unit,
+        val onArm: () -> Unit,
         val onStop: () -> Unit,
         val onPick: () -> Unit
     )
 
     /** Activity 重建时只更新回调，复用已存在的 window，避免旧 onDestroy 把新 view 移除。 */
-    fun show(onStart: () -> Unit, onStop: () -> Unit, onPick: () -> Unit) {
-        callbacks = Callbacks(onStart, onStop, onPick)
+    fun show(
+        onStart: () -> Unit,
+        onArm: () -> Unit,
+        onStop: () -> Unit,
+        onPick: () -> Unit
+    ) {
+        callbacks = Callbacks(onStart, onArm, onStop, onPick)
         mainHandler.post { ensureShown() }
     }
 
@@ -102,7 +108,9 @@ class FloatingConsole @Inject constructor(
             textSize = 12f
         }
         val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(smallButton("开始") { callbacks?.onStart?.invoke() }, weighted())
+        // 「立即」= 马上点击当前前台窗口；「武装」= 等已保存的定时时刻。
+        row.addView(smallButton("立即") { callbacks?.onStart?.invoke() }, weighted())
+        row.addView(smallButton("武装") { callbacks?.onArm?.invoke() }, weighted())
         row.addView(smallButton("停止") { callbacks?.onStop?.invoke() }, weighted())
         row.addView(smallButton("取点") { callbacks?.onPick?.invoke() }, weighted())
 
@@ -118,62 +126,93 @@ class FloatingConsole @Inject constructor(
         statusView = status
     }
 
-    /** 取点器：拖动十字/面板定位，1px 微调，回传屏幕比例坐标。 */
+    /**
+     * 紧凑取点器：整体约 208dp × 110dp。
+     * 「确定 / 关闭」放在第一行，四个微调按钮做成 2×2 放在十字右侧，
+     * 这样拖到屏幕底部时按钮仍在屏内；同时把 x/y 钳制在屏幕范围内。
+     */
     fun showPicker(onPicked: (xRatio: Float, yRatio: Float) -> Unit) {
         this.onPicked = onPicked
         mainHandler.post {
             if (picker != null) return@post
             val params = baseParams().apply {
-                x = 120
-                y = 240
-                width = dp(264)
+                x = 80
+                y = 160
+                width = dp(208)
             }
             val root = DragLinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setBackgroundColor(Color.argb(240, 255, 255, 255))
-                setPadding(8, 6, 8, 6)
+                setPadding(6, 4, 6, 4)
                 bindDrag(wm, params)
             }
             val label = TextView(context).apply {
-                text = "取点器 · 拖动十字或空白处"
+                text = "X=0.500 Y=0.500"
                 setTextColor(Color.BLACK)
-                textSize = 11f
+                setTextSize(10f)
             }
             val cross = CrosshairView(context)
 
             fun nudge(dx: Int, dy: Int) {
                 params.x += dx
                 params.y += dy
-                wm.updateViewLayout(root, params)
+                clampPicker()
                 updatePickerLabel()
             }
 
-            val row1 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-            row1.addView(smallButton("-1X") { nudge(-1, 0) }, weighted())
-            row1.addView(smallButton("+1X") { nudge(1, 0) }, weighted())
-            row1.addView(smallButton("-1Y") { nudge(0, -1) }, weighted())
-            row1.addView(smallButton("+1Y") { nudge(0, 1) }, weighted())
+            // 第一行：坐标 + 确定 + 关闭（始终在顶部可见）
+            val head = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            head.addView(label, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            head.addView(smallButton("确定") { confirmPick() })
+            head.addView(smallButton("关闭") { hidePicker() })
 
-            val row2 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-            row2.addView(smallButton("确定") { confirmPick() }, weighted())
-            row2.addView(smallButton("关闭") { hidePicker() }, weighted())
+            // 第二行：十字 + 2×2 微调
+            val microA = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            microA.addView(smallButton("-1X") { nudge(-1, 0) }, weighted())
+            microA.addView(smallButton("+1X") { nudge(1, 0) }, weighted())
+            val microB = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            microB.addView(smallButton("-1Y") { nudge(0, -1) }, weighted())
+            microB.addView(smallButton("+1Y") { nudge(0, 1) }, weighted())
+            val side = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+            side.addView(microA, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            side.addView(microB, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
 
-            root.addView(label)
-            root.addView(cross, LinearLayout.LayoutParams(dp(150), dp(150)))
-            root.addView(row1)
-            root.addView(row2)
+            val body = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            body.addView(cross, LinearLayout.LayoutParams(dp(64), dp(64)))
+            body.addView(side, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+            root.addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            root.addView(body)
             root.addDragHandle(label)
             root.addDragHandle(cross)
-            root.onMoved = { updatePickerLabel() }
+            root.onMoved = {
+                clampPicker()
+                updatePickerLabel()
+            }
 
             wm.addView(root, params)
             picker = root
             pickerParams = params
             crosshair = cross
             pickerLabel = label
-            // addView 是异步的，必须等一次布局后再取十字中心，否则初次显示 0。
-            root.post { updatePickerLabel() }
+            // addView 是异步的，等一次布局后再钳制并取十字中心。
+            root.post {
+                clampPicker()
+                updatePickerLabel()
+            }
         }
+    }
+
+    /** 保证整个取点器（尤其是「确定」按钮）始终留在屏幕内。 */
+    private fun clampPicker() {
+        val root = picker ?: return
+        val params = pickerParams ?: return
+        val dm = Resources.getSystem().displayMetrics
+        val w = if (root.width > 0) root.width else params.width
+        val h = if (root.height > 0) root.height else dp(110)
+        params.x = params.x.coerceIn(0, (dm.widthPixels - w).coerceAtLeast(0))
+        params.y = params.y.coerceIn(0, (dm.heightPixels - h).coerceAtLeast(0))
+        wm.updateViewLayout(root, params)
     }
 
     /** 与 ClickAccessibilityService 使用同一套屏幕尺寸，保证取点与点击位置一致。 */

@@ -81,6 +81,17 @@ fun PermissionScreen(nav: NavController) {
             }
             Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                 Column(Modifier.padding(12.dp)) {
+                    Text("开启步骤", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "1. Android 13+ 侧载：设置 → 应用 → Floatick → 右上 ⋮ → 允许受限设置\n" +
+                            "2. 设置 → 无障碍（或「辅助功能」）→ 已安装的应用 / 下载的服务 → Floatick → 打开\n" +
+                            "3. 回到本页点「重新检测」，三项都显示已开；首页状态卡还应显示「服务 已连接」\n" +
+                            "4. 若已打开却仍显示「服务 未连接」，把无障碍开关关闭再打开一次"
+                    )
+                }
+            }
+            Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Column(Modifier.padding(12.dp)) {
                     Text("什么时候才需要重新开启？", style = MaterialTheme.typography.titleSmall)
                     Text(
                         "授权是系统级持久状态：每次打开 App、重启手机都不用重开。" +

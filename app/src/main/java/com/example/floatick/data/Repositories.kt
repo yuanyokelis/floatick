@@ -208,7 +208,7 @@ class BackupManager @Inject constructor(private val repository: SchemeRepository
                 endYRatio = s.optDouble("endYRatio", 0.5).toFloat(),
                 action = runCatching { ActionType.valueOf(s.optString("action", "CLICK")) }
                     .getOrDefault(ActionType.CLICK),
-                durationMs = s.optLong("durationMs", 30L),
+                durationMs = s.optLong("durationMs", 80L),
                 delayAfterMs = s.optLong("delayAfterMs", 0L)
             )
         }
@@ -243,7 +243,7 @@ private fun StepEntity.toDomain(): Step = Step(
     endXRatio = endXRatio,
     endYRatio = endYRatio,
     action = runCatching { ActionType.valueOf(action) }.getOrDefault(ActionType.CLICK),
-    durationMs = durationMs,
+    durationMs = durationMs.coerceAtLeast(Limits.MIN_GESTURE_DURATION_MS),
     delayAfterMs = delayAfterMs
 )
 

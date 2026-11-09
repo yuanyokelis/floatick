@@ -20,7 +20,7 @@ data class Step(
     val endXRatio: Float = 0.5f,
     val endYRatio: Float = 0.5f,
     val action: ActionType = ActionType.CLICK,
-    val durationMs: Long = 30L,
+    val durationMs: Long = 80L,
     val delayAfterMs: Long = 0L
 )
 
@@ -69,8 +69,8 @@ data class EngineState(
 )
 
 object Limits {
-    /** dispatchGesture 过短会被系统丢弃/合并，20ms 是实测前保守下限。 */
-    const val MIN_GESTURE_DURATION_MS = 20L
+    /** 人手点击按下通常 50~150ms；过短会被部分 View / WebView 当成无效触摸。 */
+    const val MIN_GESTURE_DURATION_MS = 50L
     const val MIN_INTERVAL_MS = 50L
     const val MAX_INTERVAL_MS = 3_600_000L
     const val MAX_LOOP_COUNT = 100_000

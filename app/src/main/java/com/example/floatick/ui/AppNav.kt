@@ -44,6 +44,7 @@ fun AppNav(engine: ClickEngine, console: FloatingConsole) {
         if (Settings.canDrawOverlays(context)) {
             console.show(
                 onStart = { vm.startFirstScheme() },
+                onArm = { vm.armSavedFirst() },
                 onStop = { vm.stop() },
                 onPick = { console.showPicker { x, y -> vm.setPicked(x, y) } }
             )
