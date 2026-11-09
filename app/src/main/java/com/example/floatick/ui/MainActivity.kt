@@ -1,7 +1,5 @@
 package com.example.floatick.ui
 
-import android.Manifest
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -24,9 +22,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
-        }
+        // 不在启动时自动弹 POST_NOTIFICATIONS 权限框：系统对话框会立刻
+        // 把 MainActivity 压到后台，部分 ROM 上表现为「页面闪一下就消失，
+        // 但后台还显示应用在运行」。改为在权限页由用户主动开启。
         // 上次闪退的堆栈：进界面后弹出来，用户可直接复制定位。
         val crashText = CrashReporter.lastCrash(this)
         CrashReporter.clear(this)

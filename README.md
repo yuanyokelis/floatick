@@ -77,6 +77,10 @@ CI 产出的 debug APK 使用仓库内固定的 `app/ci-debug.keystore` 签名�
 >
 > 完成这一次之后，后续版本就不用再卸载了。
 
+### 打开就消失 / 启动闪退
+
+早期版本在 `MainActivity.onCreate` 里无条件请求 `POST_NOTIFICATIONS`，系统权限对话框会在界面刚渲染时把 Activity 压到后台；部分 ROM 上表现为「页面闪一下就没了，但后台还显示应用在运行」。现已改为**不在启动时自动弹权限框**，通知权限请在「权限」页点「去设置」主动开启（前台服务没有该权限也能运行，只是通知不显示）。
+
 ### 启动闪退时怎么拿堆栈
 
 App 在 `Application.attachBaseContext` 就装了崩溃捕获：未捕获异常会写入 `filesDir/last_crash.log`、**复制到系统剪贴板**，并推送一条「Floatick 启动失败」通知；下次打开 App 也会把堆栈弹成对话框。把通知或剪贴板内容贴回来即可定位。悬浮窗 `addView` 失败不会让 App 闪退，错误会显示在首页状态卡。

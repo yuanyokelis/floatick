@@ -1,5 +1,9 @@
 package com.example.floatick.ui
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +42,9 @@ fun PermissionScreen(nav: NavController) {
     val context = LocalContext.current
     var state by remember { mutableStateOf(PermissionCheck.snapshot(context)) }
     val serviceConnected by ClickAccessibilityService.connected.collectAsState()
+    val notificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { state = PermissionCheck.snapshot(context) }
 
     Scaffold(
         topBar = {
@@ -74,8 +81,12 @@ fun PermissionScreen(nav: NavController) {
             PermissionRow("悬浮窗 · 控制台与取点器", state.overlay) {
                 PermissionCheck.openOverlaySettings(context)
             }
-            PermissionRow("通知 · 前台服务与提醒", state.notifications) {
-                PermissionCheck.openAppDetails(context)
+            PermissionRow("通知 · 点「去设置」主动开启", state.notifications) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    PermissionCheck.openAppDetails(context)
+                }
             }
             Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                 Column(Modifier.padding(12.dp)) {
