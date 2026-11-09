@@ -69,6 +69,11 @@ class ClickEngine @Inject constructor(
     private var runJob: Job? = null
     private var armedSchemeId: Long = 0L
 
+    /** 前台服务生命周期跟踪：避免「刚 startForegroundService 就 stopService」把进程带崩。 */
+    private var fgRunning = false
+    private var fgStartedAtElapsed = 0L
+    private var fgStopJob: Job? = null
+
     /** 武装一次性定时任务。要求此时 App 前台、屏幕常亮、无障碍已连接。 */
     suspend fun arm(scheme: Scheme, rule: ScheduleRule) {
         cancelInternal()
@@ -314,6 +319,18 @@ class ClickEngine @Inject constructor(
      * 捕获后任务仍照常执行，只是少了保活，并明确提示用户。
      */
     private fun startForeground() {
+        if (fgRunning) return
+        // 服务还活着（只是排了个「稍后停止」）：取消停止即可，不要 stop→start 来回折腾。
+        // 反复重启同一个前台服务会让框架把新的启动命令投给正在销毁的实例，
+        // onCreate 不重跑 → 少调一次 startForeground → 5 秒后
+        // ForegroundServiceDidNotStartInTimeException。
+        val pendingStop = fgStopJob
+        if (pendingStop != null && pendingStop.isActive) {
+            pendingStop.cancel()
+            fgStopJob = null
+            fgRunning = true
+            return
+        }
         runCatching {
             val intent = Intent(context, ClickForegroundService::class.java)
                 .setAction(ClickForegroundService.ACTION_ARM)
@@ -322,6 +339,9 @@ class ClickEngine @Inject constructor(
             } else {
                 context.startService(intent)
             }
+        }.onSuccess {
+            fgRunning = true
+            fgStartedAtElapsed = SystemClock.elapsedRealtime()
         }.onFailure { error ->
             _state.value = _state.value.copy(
                 message = "前台服务启动受限（${error.javaClass.simpleName}）；" +
@@ -331,9 +351,35 @@ class ClickEngine @Inject constructor(
         }
     }
 
+    /**
+     * 停止前台服务，但**不立刻**停。
+     *
+     * 单次点击可能几百毫秒就跑完，紧接着 stopService 会与刚刚发出的
+     * startForegroundService 撞车：系统取消了这次启动，可「5 秒内必须转前台」
+     * 的判罚还挂着，到点就是 ForegroundServiceDidNotStartInTimeException。
+     * 所以先让服务活过一个最小寿命再停；期间若又启动，就把这次停止取消。
+     */
     private fun stopForeground() {
-        runCatching {
-            context.stopService(Intent(context, ClickForegroundService::class.java))
+        if (!fgRunning) return
+        fgRunning = false
+        val alive = SystemClock.elapsedRealtime() - fgStartedAtElapsed
+        val wait = (FG_MIN_LIFETIME_MS - alive).coerceAtLeast(0L)
+        fgStopJob = scope.launch {
+            if (wait > 0L) delay(wait)
+            if (!fgRunning) {
+                runCatching {
+                    context.stopService(Intent(context, ClickForegroundService::class.java))
+                }
+            }
         }
+    }
+
+    private companion object {
+        /**
+         * 前台服务最小存活时间。必须大于系统判定「已启动但未转前台」的窗口，
+         * 否则 stopService 会把这次启动取消掉、判罚却还在，最终以
+         * ForegroundServiceDidNotStartInTimeException 崩溃。
+         */
+        const val FG_MIN_LIFETIME_MS = 3_000L
     }
 }

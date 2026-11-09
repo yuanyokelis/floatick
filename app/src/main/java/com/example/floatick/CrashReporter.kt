@@ -18,6 +18,7 @@ import java.io.StringWriter
  */
 object CrashReporter {
     private const val FILE_NAME = "last_crash.log"
+    private const val NOTE_FILE_NAME = "notes.log"
     private const val CHANNEL_ID = "floatick_crash"
     private const val NOTIFICATION_ID = 9001
 
@@ -37,6 +38,23 @@ object CrashReporter {
             previous?.uncaughtException(thread, error)
         }
     }
+
+    /**
+     * 记录「不会崩溃但会静默降级」的异常（例如 startForeground 失败）。
+     * 这类问题以前被 runCatching 吞掉，用户只看到「没通知」，无从排查。
+     */
+    fun logNote(context: Context, text: String) {
+        runCatching {
+            val file = File(context.filesDir, NOTE_FILE_NAME)
+            if (file.exists() && file.length() > 16_000) file.writeText("")
+            file.appendText("[${System.currentTimeMillis()}] $text\n")
+        }
+    }
+
+    fun lastNote(context: Context): String? = runCatching {
+        val file = File(context.filesDir, NOTE_FILE_NAME)
+        if (file.exists()) file.readText() else null
+    }.getOrNull()
 
     fun lastCrash(context: Context): String? = runCatching {
         val file = File(context.filesDir, FILE_NAME)

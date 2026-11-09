@@ -33,25 +33,32 @@ object Notifications {
         )
     }
 
-    fun running(context: Context, text: String): Notification {
-        val stopIntent = Intent(context, ClickForegroundService::class.java)
-            .setAction(ClickForegroundService.ACTION_STOP)
-        val stopPending = PendingIntent.getService(
-            context, 11, stopIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-        return NotificationCompat.Builder(context, CHANNEL_TIMER)
+    /**
+     * @param withAction 设为 false 时构造「最小可用通知」：只有图标与标题。
+     * 用于 startForeground 第一次失败后的兜底——宁可少一个「停止」按钮，
+     * 也不能让服务没转成前台（那会以 ForegroundServiceDidNotStartInTimeException 崩溃）。
+     */
+    fun running(context: Context, text: String, withAction: Boolean = true): Notification {
+        val builder = NotificationCompat.Builder(context, CHANNEL_TIMER)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle(context.getString(R.string.notification_running))
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .addAction(
+        if (withAction) {
+            val stopIntent = Intent(context, ClickForegroundService::class.java)
+                .setAction(ClickForegroundService.ACTION_STOP)
+            val stopPending = PendingIntent.getService(
+                context, 11, stopIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            builder.addAction(
                 android.R.drawable.ic_media_pause,
                 context.getString(R.string.notification_stop),
                 stopPending
             )
-            .build()
+        }
+        return builder.build()
     }
 
     fun showReminder(context: Context) {
