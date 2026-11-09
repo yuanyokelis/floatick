@@ -9,6 +9,24 @@ enum class StopReason {
 }
 
 /**
+ * 运行结果的中文说明。数据库里存的是 StopReason.name，界面与悬浮框直接显示枚举名
+ * （如 PROTECTED_APP）用户看不懂，统一在这里翻译。
+ */
+fun stopReasonLabel(name: String?): String = when (name) {
+    "COMPLETED" -> "正常完成"
+    "USER_STOPPED" -> "手动停止"
+    "PERMISSION_LOST" -> "无障碍断开"
+    "PROTECTED_APP" -> "命中受保护应用"
+    "SCREEN_OFF" -> "屏幕熄灭"
+    "ERROR" -> "出错中断"
+    "NOT_SYNCED" -> "未校时拒绝执行"
+    null, "" -> "未知"
+    else -> name
+}
+
+fun stopReasonLabel(reason: StopReason): String = stopReasonLabel(reason.name)
+
+/**
  * 坐标一律用屏幕比例 (0f..1f) 存储，执行时再乘以当前屏幕宽高。
  * 这样换机型、分屏、横竖屏切换都不会让坐标失效。
  */

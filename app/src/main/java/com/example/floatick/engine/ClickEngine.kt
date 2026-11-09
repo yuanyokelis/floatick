@@ -11,7 +11,7 @@ import com.example.floatick.core.RunRecord
 import com.example.floatick.core.ScheduleRule
 import com.example.floatick.core.Scheme
 import com.example.floatick.core.StopReason
-import com.example.floatick.data.AppSettings
+import com.example.floatick.core.stopReasonLabel
 import com.example.floatick.data.SchemeRepository
 import com.example.floatick.data.SettingsRepository
 import com.example.floatick.system.ClickAccessibilityService
@@ -100,7 +100,7 @@ class ClickEngine @Inject constructor(
         timerHandle = timer.schedule(targetElapsed, cfg.advanceMs) { actualElapsed ->
             val deviation = actualElapsed - (targetElapsed - cfg.advanceMs)
             calibration.record(deviation)
-            runJob = scope.launch { execute(scheme, rule, deviation, synced, cfg) }
+            runJob = scope.launch { execute(scheme, rule, deviation, synced) }
         }
     }
 
@@ -121,7 +121,7 @@ class ClickEngine @Inject constructor(
         console.update(_state.value)
         startForeground()
         runJob = scope.launch {
-            execute(scheme, ScheduleRule(scheme.id, clockModel.nowUtcMs()), 0L, synced, cfg)
+            execute(scheme, ScheduleRule(scheme.id, clockModel.nowUtcMs()), 0L, synced)
         }
     }
 
@@ -154,8 +154,7 @@ class ClickEngine @Inject constructor(
         scheme: Scheme,
         rule: ScheduleRule,
         deviationMs: Long,
-        synced: Boolean,
-        cfg: AppSettings
+        synced: Boolean
     ) {
         val steps = scheme.effectiveSteps
         val total = scheme.loopCount * steps.size
@@ -185,11 +184,14 @@ class ClickEngine @Inject constructor(
                         reason = StopReason.ERROR
                         break@outer
                     }
-                    if (settingsRepository.snapshot().globalDisabled) {
+                    // 每步重读设置：全局停用与受保护名单必须「改了就生效」。
+                    // 用武装时的快照会导致运行途中新增的包名不生效——护栏失效比误触更糟。
+                    val live = settingsRepository.snapshot()
+                    if (live.globalDisabled) {
                         reason = StopReason.USER_STOPPED
                         break@outer
                     }
-                    if (guard.isProtected(cfg)) {
+                    if (guard.isProtected(live)) {
                         reason = StopReason.PROTECTED_APP
                         break@outer
                     }
@@ -259,7 +261,7 @@ class ClickEngine @Inject constructor(
                 scheduler.cancelReminder(scheme.id)
                 stopForeground()
                 _state.value = EngineState(
-                    message = "已结束 · ${reason.name} · 共 $executed 次 · 触发偏差 ${deviationMs}ms"
+                    message = "已结束 · ${stopReasonLabel(reason)} · 共 $executed 次 · 触发偏差 ${deviationMs}ms"
                 )
                 console.update(_state.value)
             }

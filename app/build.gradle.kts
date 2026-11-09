@@ -14,8 +14,8 @@ android {
         applicationId = "com.example.floatick"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.2.1"
     }
 
     // GitHub Actions 每次都是全新 runner，Android 默认的 debug.keystore

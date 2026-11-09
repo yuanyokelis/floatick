@@ -37,6 +37,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.PackageInfoCompat
 import androidx.navigation.NavController
+import com.example.floatick.core.stopReasonLabel
 import com.example.floatick.system.ClickAccessibilityService
 import com.example.floatick.system.PermissionCheck
 
@@ -243,7 +244,7 @@ fun CalibrationScreen(vm: MainViewModel, nav: NavController) {
             logs.forEach { log ->
                 Text(
                     "目标 ${log.targetUtcMillis} · 偏差 ${log.deviationMs}ms" +
-                        " · 执行 ${log.executedCount} 次 · ${log.stopReason} · " +
+                        " · 执行 ${log.executedCount} 次 · ${stopReasonLabel(log.stopReason)} · " +
                         if (log.synced) "已校时" else "未校时",
                     style = MaterialTheme.typography.bodySmall
                 )
