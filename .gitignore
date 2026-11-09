@@ -15,3 +15,6 @@
 # 固定调试签名密钥：仅用于 debug 包，按设计不是秘密，需要入库
 !app/ci-debug.keystore
 !gradle/wrapper/gradle-wrapper.jar
+
+# CI 诊断日志不入库
+emulator-logcat.txt
