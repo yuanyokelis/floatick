@@ -3,6 +3,7 @@ package com.example.floatick.engine
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.PowerManager
 import android.os.SystemClock
 import com.example.floatick.core.ActionType
 import com.example.floatick.core.EngineState
@@ -56,6 +57,10 @@ class ClickEngine @Inject constructor(
     private val scheduler: Scheduler,
     private val console: FloatingConsole
 ) {
+    private val powerManager by lazy {
+        context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    }
+
     private val _state = MutableStateFlow(EngineState())
     val state: StateFlow<EngineState> = _state.asStateFlow()
 
@@ -197,6 +202,13 @@ class ClickEngine @Inject constructor(
                     }
                     if (!ClickAccessibilityService.isConnected()) {
                         reason = StopReason.PERMISSION_LOST
+                        break@outer
+                    }
+                    // 息屏后 dispatchGesture 仍会返回 true，但触摸根本不会送到应用，
+                    // 继续跑只会刷出一堆「执行成功」的假日志。按设计前提（亮屏人工打开）
+                    // 直接停下并如实告知原因。
+                    if (!powerManager.isInteractive) {
+                        reason = StopReason.SCREEN_OFF
                         break@outer
                     }
                     val service = ClickAccessibilityService.current()

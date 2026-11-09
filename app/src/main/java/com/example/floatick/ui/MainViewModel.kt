@@ -256,8 +256,7 @@ class MainViewModel @Inject constructor(
     private companion object {
         val ERROR_HINTS = listOf(
             "未连接", "未开", "已过", "尚未成功校时", "启动受限",
-            "全局停用", "前台服务", "PERMISSION_LOST", "PROTECTED_APP",
-            "SCREEN_OFF", "已结束"
+            "全局停用", "前台服务", "已结束", "受保护", "屏幕熄灭", "出错"
         )
     }
 }
