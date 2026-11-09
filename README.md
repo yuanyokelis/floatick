@@ -77,6 +77,12 @@ CI 产出的 debug APK 使用仓库内固定的 `app/ci-debug.keystore` 签名�
 >
 > 完成这一次之后，后续版本就不用再卸载了。
 
+### 启动闪退时怎么拿堆栈
+
+App 在 `Application.attachBaseContext` 就装了崩溃捕获：未捕获异常会写入 `filesDir/last_crash.log`、**复制到系统剪贴板**，并推送一条「Floatick 启动失败」通知；下次打开 App 也会把堆栈弹成对话框。把通知或剪贴板内容贴回来即可定位。悬浮窗 `addView` 失败不会让 App 闪退，错误会显示在首页状态卡。
+
+CI 另有 `smoke.yml`：在 Android 模拟器里安装并启动 debug APK，把完整 logcat 上传为 `emulator-logcat` artifact，可在没有真机 logcat 的情况下复现启动崩溃。
+
 ### 推送到 GitHub
 
 本地已完成 `git init -b main` 与首次提交，`.workbuddy/` 已加入 `.gitignore`。创建远程仓库需要你的 GitHub 授权，二选一：

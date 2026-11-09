@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.example.floatick.CrashReporter
 import com.example.floatick.engine.ClickEngine
 import com.example.floatick.system.FloatingConsole
 import com.example.floatick.ui.theme.FloatickTheme
@@ -26,9 +27,12 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
         }
+        // 上次闪退的堆栈：进界面后弹出来，用户可直接复制定位。
+        val crashText = CrashReporter.lastCrash(this)
+        CrashReporter.clear(this)
         setContent {
             FloatickTheme {
-                AppNav(engine = engine, console = console)
+                AppNav(engine = engine, console = console, crashText = crashText)
             }
         }
     }

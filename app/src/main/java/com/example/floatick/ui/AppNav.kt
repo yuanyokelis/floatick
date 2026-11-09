@@ -21,7 +21,11 @@ import com.example.floatick.engine.ClickEngine
 import com.example.floatick.system.FloatingConsole
 
 @Composable
-fun AppNav(engine: ClickEngine, console: FloatingConsole) {
+fun AppNav(
+    engine: ClickEngine,
+    console: FloatingConsole,
+    crashText: String? = null
+) {
     val vm: MainViewModel = hiltViewModel()
     val nav = rememberNavController()
     val context = LocalContext.current
@@ -48,6 +52,12 @@ fun AppNav(engine: ClickEngine, console: FloatingConsole) {
                 onStop = { vm.stop() },
                 onPick = { console.showPicker { x, y -> vm.setPicked(x, y) } }
             )
+        }
+    }
+
+    LaunchedEffect(crashText) {
+        if (!crashText.isNullOrBlank()) {
+            vm.notify("上次启动崩溃，堆栈已复制到剪贴板：\n" + crashText.take(1200))
         }
     }
     LaunchedEffect(engineState) { console.update(engineState) }

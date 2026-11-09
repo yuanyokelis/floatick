@@ -12,6 +12,7 @@ import com.example.floatick.data.SchemeRepository
 import com.example.floatick.data.SettingsRepository
 import com.example.floatick.engine.ClickEngine
 import com.example.floatick.system.ClickAccessibilityService
+import com.example.floatick.system.FloatingConsole
 import com.example.floatick.time.CalibrationStats
 import com.example.floatick.time.ClockModel
 import com.example.floatick.time.DryRunBenchmark
@@ -35,7 +36,8 @@ class MainViewModel @Inject constructor(
     private val engine: ClickEngine,
     private val clockModel: ClockModel,
     private val calibration: TriggerCalibration,
-    private val benchmark: DryRunBenchmark
+    private val benchmark: DryRunBenchmark,
+    private val console: FloatingConsole
 ) : ViewModel() {
 
     val schemes: StateFlow<List<Scheme>> = repository.observeSchemes()
@@ -197,6 +199,8 @@ class MainViewModel @Inject constructor(
     fun nowUtcMillis(): Long = clockModel.nowUtcMs()
 
     fun isSynced(): Boolean = clockModel.isFresh()
+
+    fun overlayError(): String? = console.overlayError()
 
     fun setSyncEnabled(value: Boolean) = viewModelScope.launch {
         settingsRepository.setSyncEnabled(value)

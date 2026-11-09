@@ -56,6 +56,12 @@ class FloatingConsole @Inject constructor(
     /** 用户真正退出 App 后不再自动重建；回到前台时由 show/ensureVisible 解除。 */
     private var dismissed = false
 
+    /** addView 失败不能让整个 App 闪退，错误要能在界面上看到。 */
+    @Volatile
+    private var lastOverlayError: String? = null
+
+    fun overlayError(): String? = lastOverlayError
+
     private data class Callbacks(
         val onStart: () -> Unit,
         val onArm: () -> Unit,
@@ -153,9 +159,16 @@ class FloatingConsole @Inject constructor(
             }
         })
 
-        wm.addView(root, params)
-        panel = root
-        statusView = status
+        try {
+            wm.addView(root, params)
+            panel = root
+            statusView = status
+            lastOverlayError = null
+        } catch (e: Throwable) {
+            lastOverlayError = "悬浮窗添加失败：${e.javaClass.simpleName}: ${e.message}"
+            panel = null
+            statusView = null
+        }
     }
 
     /** 取点器：小十字 + 顶部固定工具条。 */
@@ -190,7 +203,7 @@ class FloatingConsole @Inject constructor(
                         cp.x = startX + (event.rawX - touchX).toInt()
                         cp.y = startY + (event.rawY - touchY).toInt()
                         clampCross()
-                        wm.updateViewLayout(cross, cp)
+                        safeUpdate(cross, cp)
                         updatePickerLabel()
                         true
                     }
@@ -232,13 +245,24 @@ class FloatingConsole @Inject constructor(
                 x = 0
                 y = 0
             }
-            wm.addView(cross, cp)
-            wm.addView(bar, bp)
-            pickerCross = cross
-            crossParams = cp
-            pickerBar = bar
-            pickerLabel = label
-            updatePickerLabel()
+            try {
+                wm.addView(cross, cp)
+                wm.addView(bar, bp)
+                pickerCross = cross
+                crossParams = cp
+                pickerBar = bar
+                pickerLabel = label
+                lastOverlayError = null
+                updatePickerLabel()
+            } catch (e: Throwable) {
+                lastOverlayError = "取点器添加失败：${e.javaClass.simpleName}: ${e.message}"
+                runCatching { wm.removeView(cross) }
+                runCatching { wm.removeView(bar) }
+                pickerCross = null
+                crossParams = null
+                pickerBar = null
+                pickerLabel = null
+            }
         }
     }
 
@@ -306,6 +330,11 @@ class FloatingConsole @Inject constructor(
             PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.TOP or Gravity.START }
 
+    private fun safeUpdate(view: View?, params: WindowManager.LayoutParams) {
+        if (view == null) return
+        runCatching { wm.updateViewLayout(view, params) }
+    }
+
     private fun dp(value: Int): Int = (value * density + 0.5f).toInt()
 
     private fun weighted(): LinearLayout.LayoutParams =
@@ -355,7 +384,7 @@ class FloatingConsole @Inject constructor(
                     val p = windowParams ?: return@OnTouchListener false
                     p.x = startX + (event.rawX - touchX).toInt()
                     p.y = startY + (event.rawY - touchY).toInt()
-                    manager?.updateViewLayout(this@DragLinearLayout, p)
+                    runCatching { manager?.updateViewLayout(this@DragLinearLayout, p) }
                     true
                 }
                 else -> false

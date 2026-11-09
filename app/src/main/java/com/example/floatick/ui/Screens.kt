@@ -87,7 +87,8 @@ fun SchemeListScreen(vm: MainViewModel, nav: NavController) {
                 synced = vm.isSynced(),
                 onRefresh = { permissions = PermissionCheck.snapshot(context) },
                 onGoPermissions = { nav.navigate("permissions") },
-                onStop = { vm.stop() }
+                onStop = { vm.stop() },
+                overlayError = vm.overlayError()
             )
             Spacer(Modifier.height(12.dp))
             if (schemes.isEmpty()) {
@@ -107,7 +108,8 @@ private fun StatusCard(
     synced: Boolean,
     onRefresh: () -> Unit,
     onGoPermissions: () -> Unit,
-    onStop: () -> Unit
+    onStop: () -> Unit,
+    overlayError: String? = null
 ) {
     val serviceConnected by ClickAccessibilityService.connected.collectAsState()
     Card(Modifier.fillMaxWidth()) {
@@ -152,6 +154,15 @@ private fun StatusCard(
                         TextButton(onClick = onGoPermissions) { Text("打开权限页") }
                     }
                 }
+            }
+
+            if (overlayError != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    overlayError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
 
             Spacer(Modifier.height(8.dp))
